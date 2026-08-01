@@ -29,3 +29,5 @@ app.include_router(models.router, prefix="/api/v1")
 @app.get("/api/v1/health")
 def health():
     return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}
+from mmm.api.routers import reports
+app.include_router(reports.router, prefix="/api/v1")

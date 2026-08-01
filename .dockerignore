@@ -1,0 +1,9 @@
+.venv
+node_modules
+data
+model_artifacts
+**/__pycache__
+*.pyc
+.git
+tests
+notebooks

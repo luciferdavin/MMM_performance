@@ -1,0 +1,110 @@
+Metadata-Version: 2.4
+Name: mmm-platform
+Version: 0.1.0
+Summary: AI-powered Marketing Mix Modeling platform for agencies - optimize ad spend across channels
+Author: MMM Platform
+License: Apache-2.0
+Keywords: marketing mix modeling,mmm,bayesian,budget allocation,advertising,pymc
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: pymc>=5.19
+Requires-Dist: pymc-marketing>=0.11.0
+Requires-Dist: pandas>=2.2
+Requires-Dist: numpy>=1.26
+Requires-Dist: scipy>=1.13
+Requires-Dist: polars>=1.0
+Requires-Dist: pydantic>=2.7
+Requires-Dist: pydantic-settings>=2.3
+Requires-Dist: httpx>=0.27
+Requires-Dist: anthropic>=0.34
+Requires-Dist: openai>=1.40
+Requires-Dist: click>=8.1
+Requires-Dist: rich>=13.7
+Requires-Dist: matplotlib>=3.9
+Requires-Dist: plotly>=5.22
+Requires-Dist: python-dotenv>=1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.2; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
+Requires-Dist: ruff>=0.5; extra == "dev"
+Requires-Dist: mypy>=1.10; extra == "dev"
+Requires-Dist: ipykernel>=6.29; extra == "dev"
+Requires-Dist: jupyter>=1.0; extra == "dev"
+Provides-Extra: api
+Requires-Dist: fastapi>=0.112; extra == "api"
+Requires-Dist: uvicorn[standard]>=0.30; extra == "api"
+Requires-Dist: PyJWT>=2.9; extra == "api"
+Requires-Dist: asyncpg>=0.30; extra == "api"
+Requires-Dist: celery>=5.4; extra == "api"
+Requires-Dist: redis>=5.0; extra == "api"
+Provides-Extra: worker
+Requires-Dist: celery>=5.4; extra == "worker"
+Requires-Dist: redis>=5.0; extra == "worker"
+
+# MMM Platform - AI Marketing Mix Modeling for Agencies
+
+Multi-tenant SaaS tool that helps marketing agencies measure channel performance, attribute revenue, and **optimize ad spend allocation** using Bayesian Marketing Mix Modeling (MMM).
+
+## Why MMM?
+
+As third-party cookies and platform attribution decay, agencies can no longer trust click-based attribution alone. MMM uses historical time-series data (media spend by channel + revenue) to statistically measure each channel's contribution, model diminishing returns, and recommend optimal budget splits.
+
+## Core Engine
+
+Wraps **PyMC-Marketing** (Bayesian MMM on PyMC):
+
+- Adstock (lag/carryover) + saturation (Hill curve) transforms
+- Channel contribution / ROAS attribution
+- **Budget optimizer**: maximize revenue under constraints (total budget, per-channel min/max, floors)
+- Model diagnostics: R-hat convergence, R^2, MAPE
+- Forecast + scenario planning
+- Save/load model artifacts
+
+## Architecture
+
+```
+Connectors (Meta/Google/TikTok/Shopify/CSV) -> Preprocessor -> MMMModel (PyMC)
+   -> Budget Optimizer -> AI Insights (Ollama/Claude/OpenAI)
+```
+
+## Quickstart
+
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+mmm generate-sample
+mmm train --csv data/sample/sample_data.csv
+mmm allocate --model model_artifacts/model --budget 10000
+mmm contributions --model model_artifacts/model
+```
+
+## Project Layout
+
+```
+src/mmm/
+|-- core/          # engine, preprocessor, optimizer, diagnostics, config
+|-- connectors/    # Meta, Google Ads, GA4, TikTok, Shopify, CSV
+|-- ai/            # LLM providers (Ollama/Claude/OpenAI), insights, reports
+|-- models/        # Pydantic schemas
+|-- cli.py         # mmm CLI
+tests/             # pytest suite
+data/sample/       # synthetic dataset
+```
+
+## LLM Providers
+
+Default is **self-hosted Ollama** (zero API cost). Swappable to Claude or OpenAI:
+
+```bash
+export LLM_PROVIDER=ollama       # default
+export LLM_PROVIDER=anthropic    # needs ANTHROPIC_API_KEY
+export LLM_PROVIDER=openai       # needs OPENAI_API_KEY
+```
+
+## Connectors
+
+All connectors output a normalized schema: `date, channel, spend, impressions, clicks, conversions, revenue`. CSV is the universal fallback.
+
+## License
+
+Apache-2.0

@@ -49,7 +49,10 @@ class Granularity(str, Enum):
 
 
 class ModelConfig(BaseModel):
-    """Configuration for one MMM model run."""
+    """Configuration for one MMM model run.
+
+    Production default is 4 chains / 1000 draws / 1000 tune.
+    """
 
     name: str = "default"
     date_column: str = "date"
@@ -62,6 +65,7 @@ class ModelConfig(BaseModel):
     draws: int = Field(default=1_000, ge=100)
     tune: int = Field(default=1_000, ge=100)
     chains: int = Field(default=4, ge=1)
+    target_accept: float = Field(default=0.9, ge=0.5, le=1.0)
     forecast_days: int = Field(default=90, ge=0)
     random_seed: int = 42
 

@@ -1,149 +1,215 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MEMBERS } from '@/lib/mock-data';
-import { cn } from '@/lib/cn';
+import { useEffect, useRef, useState } from "react";
+import type { BadgeVariant } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/cn";
+
+const PLAN_TIERS = ["Starter", "Pro", "Enterprise"] as const;
+type PlanTier = (typeof PLAN_TIERS)[number];
 
 const PROVIDERS = [
   {
-    id: 'ollama',
-    name: 'Ollama (self-hosted)',
-    description: 'Default. Runs locally on your infrastructure. No external API costs, fully private.',
+    id: "ollama",
+    name: "Ollama",
+    description:
+      "Self-hosted default. Runs locally on your infrastructure — no external API costs and fully private.",
   },
   {
-    id: 'claude',
-    name: 'Claude',
-    description: 'Anthropic API. Best narrative quality for executive reports and insights.',
+    id: "claude",
+    name: "Claude",
+    description: "Anthropic API. Best narrative quality for executive reports and insights.",
   },
   {
-    id: 'openai',
-    name: 'OpenAI',
-    description: 'OpenAI API. Good general-purpose narrative generation.',
+    id: "openai",
+    name: "OpenAI",
+    description: "OpenAI API. Good general-purpose narrative generation.",
   },
 ] as const;
 
-type ProviderId = (typeof PROVIDERS)[number]['id'];
+type ProviderId = (typeof PROVIDERS)[number]["id"];
 
-const ROLE_VARIANTS = {
-  Owner: 'default',
-  Analyst: 'secondary',
-  Viewer: 'neutral',
-} as const;
+type MemberRole = "agency_owner" | "analyst" | "viewer";
+
+interface Member {
+  id: string;
+  name: string;
+  email: string;
+  role: MemberRole;
+}
+
+const SEED_MEMBERS: Member[] = [
+  { id: "u1", name: "Ari Patel", email: "ari@acmeagency.io", role: "agency_owner" },
+  { id: "u2", name: "Sam Torres", email: "sam@acmeagency.io", role: "analyst" },
+  { id: "u3", name: "Jin Lee", email: "jin@acmeagency.io", role: "analyst" },
+  { id: "u4", name: "Casey Chen", email: "casey@acmeagency.io", role: "viewer" },
+];
+
+const ROLE_VARIANTS: Record<MemberRole, BadgeVariant> = {
+  agency_owner: "default",
+  analyst: "info",
+  viewer: "secondary",
+};
+
+const ROLE_LABELS: Record<MemberRole, string> = {
+  agency_owner: "Agency owner",
+  analyst: "Analyst",
+  viewer: "Viewer",
+};
 
 function initials(name: string): string {
   return name
-    .split(' ')
+    .split(" ")
     .map((w) => w[0])
     .slice(0, 2)
-    .join('')
+    .join("")
     .toUpperCase();
 }
 
 export default function SettingsPage() {
-  const [provider, setProvider] = useState<ProviderId>('ollama');
+  const [orgName, setOrgName] = useState("Acme Agency");
+  const [plan] = useState<PlanTier>("Pro");
+  const [members] = useState<Member[]>(SEED_MEMBERS);
+
+  const [provider, setProvider] = useState<ProviderId>("ollama");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [providerSaved, setProviderSaved] = useState(false);
+
+  const profileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const providerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (profileTimer.current) clearTimeout(profileTimer.current);
+      if (providerTimer.current) clearTimeout(providerTimer.current);
+    };
+  }, []);
+
+  const saveProfile = () => {
+    if (profileTimer.current) clearTimeout(profileTimer.current);
+    setProfileSaved(true);
+    profileTimer.current = setTimeout(() => setProfileSaved(false), 3200);
+  };
+
+  const saveProvider = () => {
+    if (providerTimer.current) clearTimeout(providerTimer.current);
+    setProviderSaved(true);
+    providerTimer.current = setTimeout(() => setProviderSaved(false), 3200);
+  };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Organization settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Workspace name, team, and AI provider configuration.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Settings</h1>
+        <p className="mt-1 text-sm text-slate-500">Organization profile, team access, and AI provider configuration.</p>
       </div>
 
-      {/* Organization name */}
+      {/* Organization profile */}
       <Card>
         <CardHeader>
-          <CardTitle>Organization</CardTitle>
-          <CardDescription>Workspace name shown to your team and clients.</CardDescription>
+          <CardTitle>Organization profile</CardTitle>
+          <CardDescription>Workspace name and plan tier shown to your team and clients.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-[240px]">
-            <label htmlFor="org-name" className="block text-sm font-medium text-slate-700">Organization name</label>
-            <input
-              id="org-name"
-              type="text"
-              defaultValue="Acme Agency"
-              className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-2 focus:outline-indigo-600"
-            />
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="org-name" className="block text-sm font-medium text-slate-700">
+                Organization name
+              </label>
+              <input
+                id="org-name"
+                type="text"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                placeholder="Acme Agency"
+                className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:outline-2 focus:outline-indigo-600"
+              />
+            </div>
+            <div>
+              <span className="block text-sm font-medium text-slate-700">Plan tier</span>
+              <div className="mt-1.5 flex items-center gap-2">
+                <Badge variant="default">{plan}</Badge>
+                <span className="text-xs text-slate-500">
+                  {PLAN_TIERS.map((t) => t).join(" · ")} — managed by your billing admin
+                </span>
+              </div>
+            </div>
           </div>
-          <Button>Save changes</Button>
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+            {profileSaved && (
+              <span role="status" className="text-sm font-medium text-green-600">
+                Profile saved.
+              </span>
+            )}
+            <Button onClick={saveProfile} disabled={!orgName.trim()}>
+              Save changes
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Members */}
+      {/* Team members */}
       <Card>
-        <CardHeader className="flex-row items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex flex-col gap-1">
-            <CardTitle>Members</CardTitle>
-            <CardDescription>{MEMBERS.length} people have access to this workspace.</CardDescription>
-          </div>
-          <Button size="sm">Invite member</Button>
+        <CardHeader>
+          <CardTitle>Team members</CardTitle>
+          <CardDescription>
+            {members.length} member{members.length !== 1 ? "s" : ""} have access to this workspace.
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Member</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {MEMBERS.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">
-                          {initials(m.name)}
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{m.name}</p>
-                          <p className="text-xs text-slate-500">{m.email}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {m.role === 'Owner' ? (
-                        <Badge variant="default">{m.role}</Badge>
-                      ) : (
-                        <select
-                          defaultValue={m.role}
-                          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 shadow-sm focus:outline-2 focus:outline-indigo-600"
-                          aria-label={`Role for ${m.name}`}
-                        >
-                          <option>Analyst</option>
-                          <option>Viewer</option>
-                        </select>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={m.status === 'Active' ? 'success' : 'warning'}>{m.status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {m.role === 'Owner' ? (
-                        <span className="text-xs text-slate-400">Cannot remove</span>
-                      ) : (
-                        <Button variant="ghost" size="sm">Remove</Button>
-                      )}
-                    </TableCell>
+          {members.length === 0 ? (
+            <EmptyState
+              title="No team members"
+              description="Invite teammates to collaborate on models, reports, and client data."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {members.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">
+                            {initials(m.name)}
+                          </span>
+                          <span className="font-medium text-slate-900">{m.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-slate-500">{m.email}</TableCell>
+                      <TableCell>
+                        <Badge variant={ROLE_VARIANTS[m.role]}>{ROLE_LABELS[m.role]}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* LLM provider */}
+      {/* LLM provider config */}
       <Card>
         <CardHeader>
           <CardTitle>AI insights provider</CardTitle>
-          <CardDescription>Powers natural-language insights, reports, and Q&amp;A. If the provider is unreachable, template reports are used instead.</CardDescription>
+          <CardDescription>
+            Powers natural-language insights, reports, and Q&amp;A. Ollama (self-hosted) is the default and keeps your
+            data on your infrastructure; if the provider is unreachable, template reports are used instead.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -153,8 +219,8 @@ export default function SettingsPage() {
                 <label
                   key={p.id}
                   className={cn(
-                    'flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors',
-                    selected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white hover:bg-slate-50',
+                    "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
+                    selected ? "border-indigo-300 bg-indigo-50" : "border-slate-200 bg-white hover:bg-slate-50",
                   )}
                 >
                   <input
@@ -169,14 +235,51 @@ export default function SettingsPage() {
                     <span className="block text-sm font-medium text-slate-900">{p.name}</span>
                     <span className="mt-0.5 block text-sm text-slate-500">{p.description}</span>
                   </span>
-                  {p.id === 'ollama' && <Badge variant="default">Recommended</Badge>}
+                  {p.id === "ollama" && <Badge variant="default">Default</Badge>}
                 </label>
               );
             })}
           </div>
-          <div className="mt-4 flex justify-end">
-            <Button>Save provider</Button>
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+            {providerSaved && (
+              <span role="status" className="text-sm font-medium text-green-600">
+                Saved.
+              </span>
+            )}
+            <Button onClick={saveProvider}>Save provider</Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Danger zone */}
+      <Card className="border-red-200">
+        <CardHeader>
+          <CardTitle className="text-red-600">Danger zone</CardTitle>
+          <CardDescription>
+            Irreversible actions for this organization. Use with care.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-slate-900">Delete organization</p>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Permanently remove the organization, its clients, models, and reports.
+              </p>
+            </div>
+            <Button variant="destructive" onClick={() => setConfirmDelete((v) => !v)}>
+              Delete organization
+            </Button>
+          </div>
+          {confirmDelete && (
+            <p
+              role="alert"
+              className="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600"
+            >
+              This action is not available yet — it is shown for preview only. When enabled, deleting the
+              organization will permanently remove all clients, models, and reports.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

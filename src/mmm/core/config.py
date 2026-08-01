@@ -21,14 +21,21 @@ def suggest_saturation_beta(channels: list[str]) -> list[float]:
     return betas
 
 def build_model_config(
-    *, channels: list[str], granularity: str = "week", draws: int = 1000,
-    tune: int = 1000, chains: int = 4, adstock_max_lag: int | None = None,
+    *, channels: list[str], granularity: str = "week", draws: int | None = None,
+    tune: int | None = None, chains: int | None = None, adstock_max_lag: int | None = None,
     saturation_beta: list[float] | None = None, **extra,
 ) -> ModelConfig:
     if adstock_max_lag is None:
         adstock_max_lag = 8 if granularity == "week" else 14
     if saturation_beta is None:
         saturation_beta = suggest_saturation_beta(channels)
+    # Production defaults: 4 chains / 1000 draws / 1000 tune
+    if draws is None:
+        draws = 1000
+    if tune is None:
+        tune = 1000
+    if chains is None:
+        chains = 4
     return ModelConfig(
         granularity=Granularity(granularity), draws=draws, tune=tune, chains=chains,
         adstock_max_lag=adstock_max_lag, saturation_beta=saturation_beta, **extra,

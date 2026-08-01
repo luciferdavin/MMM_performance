@@ -86,7 +86,7 @@ class MMMModel:
                 sampler_config={
                     "draws": self.config.draws,
                     "tune": self.config.tune,
-                    "chains": self.config.chains, "target_accept": 0.9,
+                    "chains": self.config.chains, "target_accept": self.config.target_accept,
                 },
             )
             pmc_model = MMMClass(**mmm_kwargs)

@@ -116,3 +116,26 @@ export const models = {
       body: JSON.stringify({ client_name: clientName ?? "Client" }),
     }),
 };
+
+/* ---- Reports ---- */
+export interface ReportGenerateRequest {
+  records: MediaRecord[];
+  config: ModelConfig;
+  client_name: string;
+  total_budget: number;
+}
+
+export interface Report {
+  report_id: string;
+  client_name: string;
+  markdown: string;
+  contributions: ChannelContribution[];
+  allocation: AllocationResult;
+}
+
+export const reports = {
+  generate: (body: ReportGenerateRequest) =>
+    request<Report>("/reports/generate", { method: "POST", body: JSON.stringify(body) }),
+  get: (id: string) => request<Report>(`/reports/${id}`),
+  pdfUrl: (id: string) => `${API_BASE}/reports/${id}/pdf`,
+};

@@ -1,28 +1,31 @@
 """FastAPI application for the MMM Platform API."""
 from __future__ import annotations
-from datetime import datetime
-from fastapi import FastAPI, HTTPException, UploadFile, File
-from mmm.core.engine import MMMModel
-from mmm.core.config import build_model_config
-from mmm.models.schemas import (
-    AllocationResult, BudgetConstraints, FitResult, MMMDataset, ModelConfig,
-    ChannelContribution, Insight,
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from mmm.config import get_settings
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    app.state.settings = settings
+    yield
+
+app = FastAPI(title="MMM Platform API", version="0.1.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-app = FastAPI(title="MMM Platform API", version="0.1.0")
+from mmm.api.routers import clients, models
+app.include_router(clients.router, prefix="/api/v1")
+app.include_router(models.router, prefix="/api/v1")
 
-
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok", "time": datetime.utcnow().isoformat()}
-
-
-@app.post("/models/train", response_model=FitResult)
-def train_model(config: ModelConfig, dataset: MMMDataset) -> FitResult:
-    model = MMMModel(config)
-    return model.fit(dataset)
-
-
-@app.post("/models/allocate", response_model=AllocationResult)
-def allocate(model_id: str, constraints: BudgetConstraints) -> AllocationResult:
-    raise HTTPException(501, "Persistent model store not wired yet; use CLI locally")
+@app.get("/api/v1/health")
+def health():
+    return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}

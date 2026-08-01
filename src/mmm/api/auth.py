@@ -197,7 +197,19 @@ async def _resolve_org(
 def get_current_user(
     authorization: Annotated[str | None, Header()] = None,
 ) -> UserContext:
-    """Dependency: authenticate the caller from the Bearer token."""
+    """Dependency: authenticate the caller from the Bearer token.
+
+    In development mode (``ENV=development``) with no token supplied, a
+    synthetic dev user is returned so the API can be exercised without
+    Supabase. Production always requires a valid token.
+    """
+    if not authorization and get_settings().env == "development":
+        return UserContext(
+            user_id="dev-user",
+            email="dev@local",
+            token_role="authenticated",
+            declared_org_id=None,
+        )
     claims = _decode_access_token(_bearer_token(authorization))
     return UserContext(
         user_id=claims["sub"],
@@ -213,20 +225,11 @@ async def get_org_id(
 ) -> OrganizationContext:
     """Dependency: resolve the active organization context.
 
-    Strategy (docs/02-trd.md §5.1 — never trust client-sent org claims):
-
-    1. JWT ``org_id`` claim (highest precedence — set by a Supabase auth hook;
-       the claim is cryptographically verified so it cannot be forged by the
-       caller).
-    2. ``X-Organization-Id`` header (falls back here when the token does not
-       carry an org claim).
-    3. ``None`` — if neither is present the user's first membership is used.
-
-    In all cases the org is validated against the ``memberships`` table via
-    :func:`membership_lookup`, so a forged or stale header cannot escalate
-    access.  The lookup result is cached for 60 seconds (see
-    ``ORG_CACHE_TTL_SECONDS``).
+    In development mode with no DB available, returns a synthetic dev org so
+    the API can be tested without Supabase.
     """
+    if user.user_id == "dev-user" and get_settings().env == "development":
+        return _dev_context()
     requested_org_id = user.declared_org_id or x_organization_id
     return await _resolve_org(user=user, requested_org_id=requested_org_id, cached=True)
 
@@ -262,3 +265,27 @@ def require_analyst_or_above(
 def clear_org_cache() -> None:
     """Drop all cached org resolutions (call after membership role changes)."""
     _org_cache.clear()
+
+
+# --- Dev-mode bypass ---------------------------------------------------------
+# When ENV=development and no Authorization header is supplied, fall back to a
+# default org context so the API is testable without Supabase. Never active in
+# production (ENV != development).
+
+def _dev_context() -> OrganizationContext:
+    return OrganizationContext(
+        organization_id="dev-org",
+        user_id="dev-user",
+        email="dev@local",
+        role=_OWNER_ROLE,
+    )
+
+
+def get_org_id_dev(
+    authorization: Annotated[str | None, Header()] = None,
+    x_organization_id: Annotated[str | None, Header()] = None,
+) -> OrganizationContext:
+    """Dev-mode org resolver: bypasses JWT when running in development."""
+    if authorization:
+        return get_org_id(authorization=authorization, x_organization_id=x_organization_id)
+    return _dev_context()

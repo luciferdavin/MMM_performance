@@ -108,7 +108,9 @@ class TestDecodeAccessToken:
     @pytest.fixture(autouse=True)
     def _patch_settings(self) -> None:
         with patch("mmm.api.auth.get_settings") as mock_settings:
-            mock_settings.return_value = type("S", (), {"supabase_jwt_secret": TEST_SECRET})()
+            mock_settings.return_value = type(
+                "S", (), {"supabase_jwt_secret": TEST_SECRET, "env": "production"}
+            )()
             yield
 
     def test_valid_token(self) -> None:
@@ -177,7 +179,9 @@ class TestGetCurrentUser:
     @pytest.fixture(autouse=True)
     def _patch_settings(self) -> None:
         with patch("mmm.api.auth.get_settings") as mock_settings:
-            mock_settings.return_value = type("S", (), {"supabase_jwt_secret": TEST_SECRET})()
+            mock_settings.return_value = type(
+                "S", (), {"supabase_jwt_secret": TEST_SECRET, "env": "production"}
+            )()
             yield
 
     def test_returns_user_info(self) -> None:
@@ -228,7 +232,9 @@ class TestGetOrgId:
             patch("mmm.api.auth.get_settings") as mock_settings,
             patch("mmm.api.db._pool", create=True),
         ):
-            mock_settings.return_value = type("S", (), {"supabase_jwt_secret": TEST_SECRET})()
+            mock_settings.return_value = type(
+                "S", (), {"supabase_jwt_secret": TEST_SECRET, "env": "production"}
+            )()
             yield
         clear_org_cache()
 
@@ -342,7 +348,9 @@ class TestRBAC:
             patch("mmm.api.auth.get_settings") as mock_settings,
             patch("mmm.api.db._pool", create=True),
         ):
-            mock_settings.return_value = type("S", (), {"supabase_jwt_secret": TEST_SECRET})()
+            mock_settings.return_value = type(
+                "S", (), {"supabase_jwt_secret": TEST_SECRET, "env": "production"}
+            )()
             yield
         clear_org_cache()
 

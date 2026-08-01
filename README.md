@@ -1,66 +1,328 @@
-# MMM Platform - AI Marketing Mix Modeling for Agencies
+# MMM Platform
 
-Multi-tenant SaaS tool that helps marketing agencies measure channel performance, attribute revenue, and **optimize ad spend allocation** using Bayesian Marketing Mix Modeling (MMM).
+**AI Marketing Mix Modeling for agencies -- measure channel performance, attribute revenue, and optimize ad spend with Bayesian statistics.**
 
-## Why MMM?
+## What It Is
 
-As third-party cookies and platform attribution decay, agencies can no longer trust click-based attribution alone. MMM uses historical time-series data (media spend by channel + revenue) to statistically measure each channel's contribution, model diminishing returns, and recommend optimal budget splits.
+Third-party cookies are dying and platform attribution is unreliable. Marketing Mix Modeling (MMM) solves this by analyzing your historical time-series data -- media spend by channel plus revenue -- to statistically measure each channel's true contribution, model diminishing returns, and recommend optimal budget splits.
 
-## Core Engine
+MMM Platform wraps [PyMC-Marketing](https://github.com/pymc-labs/pymc-marketing) in a multi-tenant SaaS tool built for agencies managing multiple clients.
 
-Wraps **PyMC-Marketing** (Bayesian MMM on PyMC):
+## Features
 
-- Adstock (lag/carryover) + saturation (Hill curve) transforms
-- Channel contribution / ROAS attribution
-- **Budget optimizer**: maximize revenue under constraints (total budget, per-channel min/max, floors)
-- Model diagnostics: R-hat convergence, R^2, MAPE
-- Forecast + scenario planning
-- Save/load model artifacts
+| Capability | Details |
+|---|---|
+| **Data connectors** | CSV upload, Meta Ads, Google Ads, GA4, TikTok, Shopify, LinkedIn, Snap, Pinterest |
+| **Bayesian engine** | Adstock lag/carryover + Hill-curve saturation transforms via PyMC-Marketing |
+| **Budget optimizer** | Scipy-based allocation maximizing revenue under total budget and per-channel constraints |
+| **AI insights** | LLM-generated channel analysis and recommendations (Ollama / Anthropic / OpenAI) |
+| **Reports & PDF** | NL report generation + charted PDF export via ReportLab |
+| **Multi-tenant** | Organization/membership/RLS model with agency_owner, analyst, viewer roles |
+| **API** | FastAPI REST API with JWT auth, CORS, and async job support |
+| **CLI** | `mmm` command for training, allocation, contributions, and demo seeding |
+| **Dashboard** | Next.js 15 + React 19 + Recharts frontend |
 
 ## Architecture
 
 ```
-Connectors (Meta/Google/TikTok/Shopify/CSV) -> Preprocessor -> MMMModel (PyMC)
-   -> Budget Optimizer -> AI Insights (Ollama/Claude/OpenAI)
-```
-
-## Quickstart
-
-```bash
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-mmm generate-sample
-mmm train --csv data/sample/sample_data.csv
-mmm allocate --model model_artifacts/model --budget 10000
-mmm contributions --model model_artifacts/model
+                              +------------------+
+                              |   Next.js App    |
+                              |  (localhost:3000)|
+                              +--------+---------+
+                                       |
+                              JSON / JWT Bearer
+                                       |
+                              +--------v---------+
+                              |   FastAPI (api)   |
+                              |  (localhost:8000) |
+                              +--+------+------+--+
+                                 |      |      |
+                    +---------->+  MMM  |  AI  +<---------+
+                    |           | Engine |Providers        |
+                    |           +---+----+---+----+-------+
+                    |               |         |
+                    |     +---------+   +-----+------+
+                    |     |  PyMC   |   | Ollama     |
+                    |     |Marketing|   | Anthropic  |
+                    |     +---------+   | OpenAI     |
+                    |                   +------------+
+          +---------+---------+               |
+          |                   |         +-----v------+
+    +-----v-----+     +------v----+    | Ollama     |
+    |  Redis     |     | Supabase  |    | (GPU opt)  |
+    | (Celery)   |     | (Postgres)|    +------------+
+    +------------+     +-----------+
 ```
 
 ## Project Layout
 
 ```
-src/mmm/
-|-- core/          # engine, preprocessor, optimizer, diagnostics, config
-|-- connectors/    # Meta, Google Ads, GA4, TikTok, Shopify, CSV
-|-- ai/            # LLM providers (Ollama/Claude/OpenAI), insights, reports
-|-- models/        # Pydantic schemas
-|-- cli.py         # mmm CLI
-tests/             # pytest suite
-data/sample/       # synthetic dataset
+mmm-platform/
+|-- src/mmm/
+|   |-- core/              # engine, preprocessor, optimizer, diagnostics, config
+|   |-- connectors/        # Meta, Google Ads, GA4, TikTok, Shopify, CSV, LinkedIn, Snap
+|   |-- ai/                # LLM providers, insights, report generation, prompts
+|   |-- api/               # FastAPI app, routers (clients, models, reports), auth, db
+|   |-- models/            # Pydantic schemas
+|   |-- tasks/             # Celery async tasks (training)
+|   |-- cli.py             # mmm CLI entry point
+|   |-- config.py          # Settings from env vars
+|   +-- worker.py          # Celery worker bootstrap
+|-- app/                   # Next.js 15 dashboard (src/, components/, lib/)
+|-- tests/                 # pytest suite
+|-- data/sample/           # Synthetic datasets
+|-- model_artifacts/       # Saved model files
+|-- supabase/migrations/   # Database schema (001_init.sql)
+|-- docs/                  # Research and design documents
+|-- notebooks/             # Jupyter notebooks
+|-- Dockerfile             # API container build
++-- docker-compose.yml     # api + redis + ollama services
 ```
 
-## LLM Providers
+## Quickstart (Local)
 
-Default is **self-hosted Ollama** (zero API cost). Swappable to Claude or OpenAI:
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+ (for the dashboard)
+- [Ollama](https://ollama.com) installed and running (default LLM provider, zero cost)
+
+### 1. Create a virtual environment and install
 
 ```bash
-export LLM_PROVIDER=ollama       # default
-export LLM_PROVIDER=anthropic    # needs ANTHROPIC_API_KEY
-export LLM_PROVIDER=openai       # needs OPENAI_API_KEY
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+pip install -e ".[dev]"
 ```
 
-## Connectors
+For the API server, also install the api extras:
 
-All connectors output a normalized schema: `date, channel, spend, impressions, clicks, conversions, revenue`. CSV is the universal fallback.
+```bash
+pip install -e ".[api]"
+```
+
+### 2. Seed demo data and train a model
+
+The fastest path -- generates synthetic spend/revenue data across 5 channels and trains a seed model:
+
+```bash
+mmm seed
+```
+
+This creates `data/sample/seed_data.csv` and saves a trained model to `model_artifacts/seed_model`.
+
+Alternatively, generate only the sample data (no training):
+
+```bash
+mmm generate-sample
+```
+
+Then train manually:
+
+```bash
+mmm train --csv data/sample/sample_data.csv
+mmm allocate --model model_artifacts/model --budget 10000
+mmm contributions --model model_artifacts/model
+```
+
+### 3. Run the API
+
+```bash
+# From the repo root (add PYTHONPATH if installing from source without pip install)
+PYTHONPATH=src uvicorn mmm.api.main:app --reload --port 8000
+```
+
+The API is now at `http://localhost:8000`. In development mode (`ENV=development`), the API works without a JWT token -- it creates a synthetic dev user automatically.
+
+### 4. Run the dashboard
+
+```bash
+cd app
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000` in your browser.
+
+## Environment Variables
+
+Copy `.env.example` to `.env` and fill in the values you need. All variables are optional for local dev -- the API falls back to defaults.
+
+| Variable | Default | Description |
+|---|---|---|
+| **LLM Provider** | | |
+| `LLM_PROVIDER` | `ollama` | LLM backend: `ollama`, `anthropic`, or `openai` |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_MODEL` | `qwen2.5:7b` | Ollama model name |
+| `ANTHROPIC_API_KEY` | (empty) | Anthropic API key (only if `LLM_PROVIDER=anthropic`) |
+| `OPENAI_API_KEY` | (empty) | OpenAI API key (only if `LLM_PROVIDER=openai`) |
+| **Data Connectors** | | |
+| `META_APP_ID` / `META_APP_SECRET` / `META_ACCESS_TOKEN` | (empty) | Meta Marketing API credentials |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | (empty) | Google Ads API credentials (plus `CLIENT_ID`, `CLIENT_SECRET`, `REFRESH_TOKEN`, `CUSTOMER_ID`) |
+| `GA4_PROPERTY_ID` / `GA4_SERVICE_ACCOUNT_KEY_PATH` | (empty) | GA4 connector |
+| `TIKTOK_APP_ID` / `TIKTOK_APP_SECRET` / `TIKTOK_ACCESS_TOKEN` | (empty) | TikTok Marketing API |
+| `SHOPIFY_STORE_DOMAIN` / `SHOPIFY_ACCESS_TOKEN` | (empty) | Shopify store connector |
+| `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` / `LINKEDIN_ACCESS_TOKEN` | (empty) | LinkedIn Marketing API |
+| **Supabase** | | |
+| `SUPABASE_URL` | (empty) | Supabase project URL |
+| `SUPABASE_ANON_KEY` | (empty) | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | (empty) | Supabase service role key (server-side only) |
+| `SUPABASE_JWT_SECRET` | (empty) | JWT secret from Supabase (Settings > API > JWT Secret) |
+| `DATABASE_URL` | (empty) | Direct PostgreSQL connection string (`postgresql://...`) |
+| **Model Storage** | | |
+| `MODEL_STORAGE_BACKEND` | `local` | Where to store trained model artifacts: `local`, `s3`, or `r2` |
+| `MODEL_STORAGE_PATH` | `./model_artifacts` | Local path for model files |
+| **Queue** | | |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis URL for Celery job broker |
+| **App** | | |
+| `ENV` | `development` | `development` or `production` (controls JWT enforcement) |
+| `SECRET_KEY` | `change-me` | Application secret |
+| `LOG_LEVEL` | `INFO` | Logging level |
+
+## Windows: PyTensor C-Compiler (Faster Training)
+
+By default PyTensor uses a Python fallback for compiled ops. Enabling the C compiler via `PYTENSOR_FLAGS` gives **10-50x faster** model training.
+
+**Steps:**
+
+1. Install MinGW-w64 via winget (includes `g++.exe`):
+
+```bash
+winget install BrechtSanders.WinLibs.POSIX.UCRT
+```
+
+2. Find your `g++.exe` path:
+
+```bash
+where g++
+# Common path:
+# C:/Users/<you>/AppData/Local/Microsoft/WinGet/Packages/
+#   BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe/mingw64/bin/g++.exe
+```
+
+3. Set `PYTENSOR_FLAGS` in your `.env` (point to the full path):
+
+```
+PYTENSOR_FLAGS=cxx=C:/Users/<you>/AppData/Local/Microsoft/WinGet/Packages/BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe/mingw64/bin/g++.exe
+```
+
+**Ollama GPU acceleration (optional):**
+
+For systems with a discrete GPU (e.g. GTX 1650 4GB), adjust Ollama settings for smaller models:
+
+```
+OLLAMA_HOST=0.0.0.0:11434
+OLLAMA_KV_CACHE_TYPE=q4_0
+OLLAMA_NUM_PARALLEL=2
+```
+
+Then use a model that fits your VRAM:
+
+```bash
+ollama pull qwen2.5:3b
+```
+
+Update `.env`:
+
+```
+OLLAMA_MODEL=qwen2.5:3b
+```
+
+## Docker Deployment
+
+The `docker-compose.yml` spins up three services: the API, Redis (job queue), and Ollama (LLM).
+
+```bash
+# Copy your .env into the project root (docker-compose reads it)
+docker-compose up --build
+```
+
+This starts:
+- **api** on `http://localhost:8000` -- FastAPI served by uvicorn
+- **redis** on port `6379` -- Celery broker/backend
+- **ollama** on port `11434` -- pull models via `ollama pull <model>`
+
+The Dockerfile builds a Python 3.11-slim image with build-essential and libgomp1 (required by PyMC/PyTensor) and installs the `.[api]` extras.
+
+To run only the API against a local Ollama/Redis:
+
+```bash
+docker-compose up api redis
+```
+
+## Supabase Setup
+
+The database schema lives in `supabase/migrations/001_init.sql`. To wire it up:
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com) (free tier works for dev).
+
+2. **Run the migration** -- open the Supabase SQL Editor and paste the full contents of `supabase/migrations/001_init.sql`, then execute it.
+
+3. **Configure environment variables** in `.env`:
+
+```
+SUPABASE_URL=https://<your-project>.supabase.co
+SUPABASE_JWT_SECRET=<from Settings > API > JWT Secret>
+DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+```
+
+4. **Restart the API** so it picks up the new settings.
+
+### Auth Model
+
+The schema implements a multi-tenant model with Row-Level Security (RLS):
+
+- **Organizations** -- top-level tenant. Each agency is an org with a `plan_tier` (starter/pro/enterprise).
+- **Memberships** -- links users to organizations with a role: `agency_owner`, `analyst`, or `viewer`.
+- **RLS policies** -- every table is RLS-protected. Users can only see data from their own org. Write operations require `analyst` or `agency_owner` role. Usage records are owner-only.
+
+The API verifies Supabase JWTs (HS256, audience `authenticated`) and resolves the org context from the `org_id` claim or `X-Organization-Id` header, cross-checking against the `memberships` table.
+
+A Supabase auth trigger (`on_auth_user_created`) automatically creates a `users` row when a new user signs up.
+
+## Testing
+
+```bash
+pytest tests/ -q
+```
+
+The test suite covers:
+
+| Test file | Covers |
+|---|---|
+| `test_engine.py` | MMM model fit, allocate, contributions |
+| `test_optimizer.py` | Scipy budget allocation |
+| `test_preprocessor.py` | Data normalization |
+| `test_diagnostics.py` | R-squared, MAPE, convergence checks |
+| `test_connectors.py` | CSV connector parsing |
+| `test_schemas.py` | Pydantic schema validation |
+| `test_auth.py` | JWT verification, org resolution |
+| `test_train_task.py` | Celery training task |
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/health` | Health check (returns status + timestamp) |
+| `GET` | `/api/v1/clients` | List clients for the current org |
+| `POST` | `/api/v1/clients` | Create a new client (`{name, slug?}`) |
+| `GET` | `/api/v1/clients/{id}` | Get a single client |
+| `DELETE` | `/api/v1/clients/{id}` | Delete a client |
+| `POST` | `/api/v1/models/train` | Train a model (`{config, records[]}`) -- returns `FitResult` with `model_id` |
+| `POST` | `/api/v1/models/{id}/allocate` | Allocate budget (`{total_budget, channel_bounds?}`) -- returns `AllocationResult` |
+| `GET` | `/api/v1/models/{id}/contributions` | Get channel contributions for a trained model |
+| `POST` | `/api/v1/models/{id}/insights` | Generate AI-powered insights for a model (`{client_name?}`) |
+| `POST` | `/api/v1/reports/generate` | Train + allocate + generate NL report (`{records, config, client_name, total_budget}`) |
+| `GET` | `/api/v1/reports/{id}` | Retrieve a generated report |
+| `GET` | `/api/v1/reports/{id}/pdf` | Download report as PDF |
+
+## Roadmap / Known Limits
+
+- **Real connector credentials** -- all API connectors (Meta, Google, TikTok, Shopify, LinkedIn) are implemented but require valid OAuth credentials to pull live data. CSV upload works without any keys.
+- **DB layer is in-memory** -- client, model, and report stores are in-memory dicts for dev. Supabase wiring is in progress; the migration file and auth module are ready.
+- **Browser E2E tests pending** -- the Next.js dashboard has not yet been covered by end-to-end browser tests.
+- **Celery workers** -- async training jobs are defined in `src/mmm/tasks/train.py` but require a running Redis + Celery worker to execute in the background.
 
 ## License
 

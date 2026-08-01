@@ -69,6 +69,77 @@ def contributions(model):
 
 
 @main.command()
+def seed() -> None:
+    """Create a demo environment with synthetic data and a trained model."""
+    from pathlib import Path
+
+    import numpy as np
+
+    rng = np.random.default_rng(42)
+    dates = pd.date_range("2024-01-01", periods=12, freq="W-MON")
+    rows = []
+    base = {"meta": 3000, "google_ads": 2500, "tiktok": 1500, "tv": 1000, "radio": 500}
+    eff = {"meta": 3.5, "google_ads": 4.0, "tiktok": 3.0, "tv": 1.5, "radio": 1.2}
+    for i, d in enumerate(dates):
+        season = 1 + 0.15 * np.sin(2 * np.pi * i / 12)
+        for channel_index, (ch, spend_base) in enumerate(base.items()):
+            channel_wave = np.sin(2 * np.pi * i / 12 + channel_index)
+            spend = spend_base * (1 + 0.08 * channel_wave) + rng.normal(0, spend_base * 0.03)
+            spend = max(spend, 0)
+            revenue = spend * eff[ch] * (1 / (1 + spend / (spend_base * 20))) * season
+            rows.append({
+                "date": d.date().isoformat(), "channel": ch, "spend": round(spend, 2),
+                "impressions": int(spend * 1500), "clicks": int(spend * 30),
+                "conversions": int(revenue / 80), "revenue": round(revenue, 2),
+            })
+
+    sample_path = Path("data/sample/seed_data.csv")
+    sample_path.parent.mkdir(parents=True, exist_ok=True)
+    df = pd.DataFrame(rows)
+    df.to_csv(sample_path, index=False)
+
+    records = [MediaRecord(**row) for row in df.to_dict("records")]
+    dataset = MMMDataset(records=records)
+    channels = dataset.channels
+    config = build_model_config(
+        channels=channels,
+        granularity="week",
+        draws=100,
+        tune=100,
+        chains=1,
+        adstock_max_lag=4,
+        name="seed_model",
+    )
+    model = MMMModel(config)
+    console.print("[bold]Training seed MMM model...[/bold]")
+    result = model.fit(dataset)
+    if result.status != "ok":
+        console.print(f"[red]Seed model fit status: {result.status}[/red]")
+        console.print(f"[red]Error: {result.error or 'Unknown fit error'}[/red]")
+        raise click.exceptions.Exit(1)
+
+    allocation = model.allocate_budget(total_budget=50000, constraints=BudgetConstraints(total_budget=50000))
+    model_path = Path("model_artifacts/seed_model")
+    model.save(model_path)
+
+    diagnostics = result.diagnostics
+    console.print("[green]Seed demo environment created[/green]")
+    console.print(f"Channels trained: {', '.join(channels)}")
+    if diagnostics:
+        console.print(f"FitResult status: {result.status} | R²: {diagnostics.r2:.3f} | MAPE: {diagnostics.mape:.1f}%")
+    else:
+        console.print(f"FitResult status: {result.status}")
+    console.print(f"Seed data written to {sample_path}")
+    console.print(f"Model saved to {model_path}")
+
+    table = Table(title="Seed Budget Allocation ($50,000)")
+    table.add_column("Channel"); table.add_column("Budget"); table.add_column("Share")
+    for item in allocation.allocations:
+        table.add_row(item.channel, f"${item.allocated_budget:,.0f}", f"{item.share:.1%}")
+    console.print(table)
+
+
+@main.command()
 def generate_sample():
     """Generate a synthetic sample dataset."""
     import numpy as np

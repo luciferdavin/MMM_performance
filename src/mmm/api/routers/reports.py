@@ -8,6 +8,105 @@ from mmm.api.auth import OrganizationContext, get_org_id
 from mmm.core.engine import MMMModel
 from mmm.models.schemas import ModelConfig, MMMDataset, MediaRecord
 
+# ---------------------------------------------------------------------------
+# Chart helpers (reportlab Drawing-based, no chart library quirks)
+# ---------------------------------------------------------------------------
+_INDIGO = "#4F46E5"
+_TEAL = "#0D9488"
+_SLATE_300 = "#CBD5E1"
+_SLATE_400 = "#94A3B8"
+_SLATE_600 = "#475569"
+_SLATE_900 = "#0F172A"
+
+_LABEL_WIDTH = 90      # px reserved for channel labels
+_BAR_GAP = 6           # vertical gap between bars
+_BAR_HEIGHT = 22       # height of each horizontal bar
+_CHART_PAD_LEFT = 0
+_CHART_PAD_RIGHT = 8
+_CHART_PAD_TOP = 20
+_CHART_PAD_BOTTOM = 10
+_CHART_TOTAL_WIDTH = 460
+
+
+def _fmt_currency(value: float) -> str:
+    if value >= 1_000_000:
+        return f"${value / 1_000_000:.1f}M"
+    if value >= 1_000:
+        return f"${value / 1_000:.0f}K"
+    return f"${value:,.0f}"
+
+
+def _build_horizontal_bar_chart(
+    labels: list[str],
+    values: list[float],
+    bar_color: str,
+    title: str,
+    value_fmt: str = "currency",
+) -> "Drawing":  # noqa: F821 — runtime is reportlab
+    from reportlab.graphics.shapes import Drawing, Rect, String
+
+    n = len(labels)
+    chart_height = _CHART_PAD_TOP + n * (_BAR_HEIGHT + _BAR_GAP) + _CHART_PAD_BOTTOM
+    drawing = _CHART_TOTAL_WIDTH, chart_height
+
+    d: Drawing = Drawing(_CHART_TOTAL_WIDTH, chart_height)  # type: ignore[assignment]
+
+    # Title
+    d.add(String(_CHART_PAD_LEFT, chart_height - 16, title,
+                 fontSize=10, fontName="Helvetica-Bold", fillColor=_SLATE_600))
+
+    max_val = max(values) if values else 1
+    bar_area_width = _CHART_TOTAL_WIDTH - _LABEL_WIDTH - _CHART_PAD_RIGHT
+
+    for i, (label, value) in enumerate(zip(labels, values)):
+        y = chart_height - _CHART_PAD_TOP - (i + 1) * (_BAR_HEIGHT + _BAR_GAP) + _BAR_GAP
+
+        # Channel label
+        d.add(String(_CHART_PAD_LEFT, y + 6, label,
+                     fontSize=8, fontName="Helvetica", fillColor=_SLATE_900))
+
+        # Bar background (track)
+        bar_x = _LABEL_WIDTH
+        d.add(Rect(bar_x, y, bar_area_width, _BAR_HEIGHT,
+                   fillColor=_SLATE_300, strokeColor=None, rx=3, ry=3))
+
+        # Value bar
+        bar_width = (value / max_val) * bar_area_width if max_val > 0 else 0
+        if bar_width > 0:
+            d.add(Rect(bar_x, y, bar_width, _BAR_HEIGHT,
+                       fillColor=bar_color, strokeColor=None, rx=3, ry=3))
+
+        # Value label (mono font for numbers)
+        if value_fmt == "currency":
+            val_text = _fmt_currency(value)
+        elif value_fmt == "percent":
+            val_text = f"{value:.1%}"
+        else:
+            val_text = str(value)
+
+        d.add(String(bar_x + bar_width + 6, y + 6, val_text,
+                     fontSize=8, fontName="Courier", fillColor=_SLATE_600))
+
+    return d
+
+
+def _build_budget_allocation_chart(allocations: list[dict]):  # type: ignore[type-arg]
+    """Horizontal bar chart: allocated budget ($) per channel."""
+    labels = [a["channel"] for a in allocations]
+    values = [a["allocated_budget"] for a in allocations]
+    return _build_horizontal_bar_chart(labels, values, _INDIGO,
+                                       "Budget Allocation by Channel ($)",
+                                       value_fmt="currency")
+
+
+def _build_contribution_share_chart(contributions: list[dict]):  # type: ignore[type-arg]
+    """Horizontal bar chart: contribution share (%) per channel."""
+    labels = [c["channel"] for c in contributions]
+    values = [c["share"] for c in contributions]
+    return _build_horizontal_bar_chart(labels, values, _TEAL,
+                                       "Channel Contribution Share (%)",
+                                       value_fmt="percent")
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -73,19 +172,27 @@ async def download_pdf(report_id: str, ctx: OrganizationContext = Depends(get_or
         story.append(Paragraph(f"MMM Report — {r['client_name']}", title_style))
         story.append(Spacer(1, 12))
 
-        # Channel contributions table
+        # Channel contributions section with share chart
         story.append(Paragraph("Channel Contributions", h2_style))
-        for c in r.get("contributions", []):
+        contribs_data = r.get("contributions", [])
+        if contribs_data:
+            story.append(_build_contribution_share_chart(contribs_data))
+            story.append(Spacer(1, 12))
+        for c in contribs_data:
             story.append(Paragraph(
                 f"<b>{c['channel']}</b>: spend ${c['spend']:,.0f} · ROAS {c['roas']:.2f}x · share {c['share']:.1%}",
                 styles["Normal"]
             ))
             story.append(Spacer(1, 4))
 
-        # Budget allocation
+        # Budget allocation section with bar chart
         alloc = r.get("allocation", {})
         story.append(Paragraph("Budget Allocation", h2_style))
-        for a in alloc.get("allocations", []):
+        alloc_data = alloc.get("allocations", [])
+        if alloc_data:
+            story.append(_build_budget_allocation_chart(alloc_data))
+            story.append(Spacer(1, 12))
+        for a in alloc_data:
             story.append(Paragraph(
                 f"<b>{a['channel']}</b>: ${a['allocated_budget']:,.0f} ({a['share']:.1%})",
                 styles["Normal"]

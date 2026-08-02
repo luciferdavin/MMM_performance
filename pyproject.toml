@@ -38,6 +38,10 @@ dependencies = [
     "matplotlib>=3.9",
     "plotly>=5.22",
 
+    # --- Persistence ---
+    "sqlalchemy[asyncio]>=2.0",
+    "aiosqlite>=0.20",
+
     # --- Utils ---
     "python-dotenv>=1.0",
     "reportlab>=5.0",

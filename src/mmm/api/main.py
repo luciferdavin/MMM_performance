@@ -5,11 +5,13 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mmm.config import get_settings
+from mmm.db.session import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
     app.state.settings = settings
+    await init_db()
     yield
 
 app = FastAPI(title="MMM Platform API", version="0.1.0", lifespan=lifespan)

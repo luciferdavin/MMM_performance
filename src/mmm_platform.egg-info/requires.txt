@@ -14,6 +14,7 @@ rich>=13.7
 matplotlib>=3.9
 plotly>=5.22
 python-dotenv>=1.0
+reportlab>=5.0
 
 [api]
 fastapi>=0.112

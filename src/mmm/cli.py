@@ -1,5 +1,6 @@
 """CLI for training, optimizing, and reporting."""
 from __future__ import annotations
+import asyncio
 import json
 import click
 import pandas as pd
@@ -117,6 +118,47 @@ def seed() -> None:
         console.print(f"[red]Seed model fit status: {result.status}[/red]")
         console.print(f"[red]Error: {result.error or 'Unknown fit error'}[/red]")
         raise click.exceptions.Exit(1)
+
+    # Persist to database
+    async def _persist_seed():
+        from mmm.db.repo import create_client, create_model_job, add_channel_results
+
+        client = await create_client(
+            client_id="seed-client",
+            organization_id="dev-org",
+            name="Seed Demo Client",
+            slug="seed-demo",
+        )
+        console.print(f"Persisted client: {client.id} ({client.name})")
+
+        job = await create_model_job(
+            job_id=result.model_id,
+            organization_id="dev-org",
+            client_id=client.id,
+            model_name=config.name,
+            config_json=json.dumps(config.model_dump(), default=str),
+            status="completed",
+            r2=result.diagnostics.r2 if result.diagnostics else None,
+            mape=result.diagnostics.mape if result.diagnostics else None,
+        )
+        console.print(f"Persisted model job: {job.id}")
+
+        contribs = model.get_channel_contributions()
+        if contribs:
+            channel_results = [
+                {
+                    "channel": c.channel,
+                    "contribution": c.contribution,
+                    "share": c.share,
+                    "roas": c.roas,
+                    "spend": c.spend,
+                }
+                for c in contribs
+            ]
+            await add_channel_results(job.id, channel_results)
+            console.print(f"Persisted {len(channel_results)} channel results")
+
+    asyncio.run(_persist_seed())
 
     allocation = model.allocate_budget(total_budget=50000, constraints=BudgetConstraints(total_budget=50000))
     model_path = Path("model_artifacts/seed_model")

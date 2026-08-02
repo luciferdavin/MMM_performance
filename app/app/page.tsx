@@ -1,15 +1,33 @@
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { EmptyState } from '@/components/ui/empty-state';
-import { CLIENTS, latestModel } from '@/lib/mock-data';
-import { formatDate, formatPercent } from '@/lib/format';
-import { channelColor, channelLabel } from '@/lib/channel-colors';
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { clients as clientsApi, type Client } from "@/lib/api";
 
 export default function DashboardPage() {
-  const modelTrains30d = 47;
-  const avgR2 = 0.84;
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadClients = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setClients(await clientsApi.list());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load clients");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadClients();
+  }, [loadClients]);
 
   return (
     <div className="space-y-8">
@@ -18,13 +36,17 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm text-slate-500">Cross-client overview and recent activity.</p>
       </div>
 
+      {error && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>
+      )}
+
       {/* KPI row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Active clients', value: String(CLIENTS.length), sub: '+2 this month' },
-          { label: 'Models trained (30d)', value: String(modelTrains30d), sub: '47 / 100 quota' },
-          { label: 'Avg. model R²', value: avgR2.toFixed(2), sub: 'Above 0.70 target' },
-          { label: 'Insights (30d)', value: '124', sub: '5 reports shared' },
+          { label: "Active clients", value: loading ? "—" : String(clients.length), sub: "" },
+          { label: "Models trained (30d)", value: "N/A", sub: "No training data yet" },
+          { label: "Avg. model R²", value: "N/A", sub: "No model data yet" },
+          { label: "Insights (30d)", value: "N/A", sub: "No insights yet" },
         ].map((kpi) => (
           <div key={kpi.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{kpi.label}</p>
@@ -35,7 +57,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Client overview */}
-      {CLIENTS.length === 0 ? (
+      {loading ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
+          Loading clients...
+        </div>
+      ) : clients.length === 0 ? (
         <EmptyState
           title="Welcome! Add your first client to get started."
           description="Clients let you organize data, models, and reports per brand."
@@ -53,56 +79,24 @@ export default function DashboardPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Client</TableHead>
-                    <TableHead>Industry</TableHead>
-                    <TableHead>Latest model</TableHead>
-                    <TableHead>Top channel</TableHead>
+                    <TableHead>Slug</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {CLIENTS.map((c) => {
-                    const model = latestModel(c.id);
-                    const topCh = model?.channels.slice().sort((a, b) => b.contribution - a.contribution)[0];
-                    return (
-                      <TableRow key={c.id}>
-                        <TableCell>
-                          <a href={`/clients/${c.id}`} className="font-medium text-indigo-600 hover:underline">
-                            {c.name}
-                          </a>
-                        </TableCell>
-                        <TableCell className="text-slate-600">{c.industry}</TableCell>
-                        <TableCell>
-                          {model && model.r2 !== null ? (
-                            <span className="tabular-nums font-mono text-sm text-slate-700">R&sup2; {model.r2.toFixed(2)} &middot; {formatDate(model.trainedAt)}</span>
-                          ) : (
-                            <span className="text-xs text-slate-400">No model</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {topCh ? (
-                            <span className="flex items-center gap-1.5 text-sm text-slate-700">
-                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: channelColor(topCh.name) }} />
-                              {channelLabel(topCh.name)} {formatPercent(topCh.contribution)}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-400">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={c.status === 'healthy' ? 'success' : c.status === 'needs-data' ? 'secondary' : 'warning'}>
-                            {c.status === 'healthy' ? 'Healthy' : c.status === 'needs-data' ? 'Needs data' : 'Retrain due'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <a href="/onboarding"><Button variant="ghost" size="sm">Train</Button></a>
-                            <a href="/optimize"><Button variant="ghost" size="sm">Optimize</Button></a>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {clients.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell>
+                        <a href={`/clients/${c.id}`} className="font-medium text-indigo-600 hover:underline">
+                          {c.name}
+                        </a>
+                      </TableCell>
+                      <TableCell className="text-slate-600 font-mono text-sm">{c.slug}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">No model</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>

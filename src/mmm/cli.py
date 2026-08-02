@@ -121,7 +121,10 @@ def seed() -> None:
 
     # Persist to database
     async def _persist_seed():
+        from mmm.db.session import init_db
         from mmm.db.repo import create_client, create_model_job, add_channel_results
+
+        await init_db()
 
         client = await create_client(
             client_id="seed-client",

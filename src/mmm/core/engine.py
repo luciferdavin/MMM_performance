@@ -104,6 +104,10 @@ class MMMModel:
                 X=X,
                 y=y,
                 random_seed=self.config.random_seed,
+                draws=self.config.draws,
+                tune=self.config.tune,
+                chains=self.config.chains,
+                progressbar=False,
             )
             self._fitted_model = pmc_model
             diag = compute_diagnostics(pmc_model, y, X, self.config.name, warnings)

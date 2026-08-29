@@ -1,8 +1,11 @@
 """End-to-end smoke test against a running API (port 8011)."""
 
 import json
+import socket
 import sys
 import urllib.request
+
+socket.setdefaulttimeout(600)
 
 BASE = "http://127.0.0.1:8011/api/v1"
 

@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     secret_key: str = "change-me"
     log_level: str = "INFO"
 
+    # --- Connectors ---
+    meta_access_token: str = ""
+    google_ads_developer_token: str = ""
+    tiktok_access_token: str = ""
+    shopify_access_token: str = ""
+    ga4_property_id: str = ""
+
     # --- Database ---
     database_url: str = ""
     supabase_url: str = ""

@@ -1,9 +1,13 @@
 """Google Analytics 4 Data API connector."""
 from __future__ import annotations
-import pandas as pd
+
 from datetime import datetime
-from mmm.connectors.base import DataConnector, ConnectorConfig
+
+import pandas as pd
+
 from mmm.config import get_settings
+from mmm.connectors.base import ConnectorConfig, DataConnector
+
 
 class GA4Connector(DataConnector):
     def __init__(self) -> None:
@@ -13,7 +17,7 @@ class GA4Connector(DataConnector):
     def fetch_spend(self, start: datetime, end: datetime) -> pd.DataFrame:
         try:
             from google.analytics.data_v1beta import BetaAnalyticsDataClient
-            from google.analytics.data_v1beta.types import RunReportRequest, DateRange, Dimension, Metric
+            from google.analytics.data_v1beta.types import DateRange, Dimension, Metric, RunReportRequest
         except ImportError:
             raise ImportError("pip install google-analytics-data")
         client = BetaAnalyticsDataClient()

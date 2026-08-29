@@ -1,18 +1,28 @@
 """Core MMM model — thin wrapper around PyMC-Marketing."""
 from __future__ import annotations
+
 import logging
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
-import pandas as pd
+
 import numpy as np
-from mmm.models.schemas import (
-    Allocation, AllocationResult, BudgetConstraints, ChannelContribution,
-    FitResult, ForecastPoint, ModelConfig, ModelDiagnostics, MMMDataset,
-)
-from mmm.core.preprocessor import to_training_frame, validate_dataset
+import pandas as pd
+
 from mmm.core.diagnostics import compute_diagnostics
 from mmm.core.optimizer import allocate_budget_scipy
+from mmm.core.preprocessor import to_training_frame, validate_dataset
+from mmm.models.schemas import (
+    Allocation,
+    AllocationResult,
+    BudgetConstraints,
+    ChannelContribution,
+    FitResult,
+    ForecastPoint,
+    MMMDataset,
+    ModelConfig,
+    ModelDiagnostics,
+)
 
 if TYPE_CHECKING:
     pass
@@ -126,14 +136,16 @@ class MMMModel:
 
     def get_channel_contributions(self) -> list[ChannelContribution]:
         assert self.is_fitted, "call fit() first"
-        contrib_result = self._fitted_model.compute_channel_contribution_original_scale(
-            original_scale_input=self._fit_data,
-        )
-        contrib_samples = contrib_result.channel_contribution_original_scale_samples
-        if hasattr(contrib_samples, "values"):
-            contrib_samples = contrib_samples.values
-        # Shape: (chain, draw, date, channel) → reduce to (channel,)
-        contrib_median = np.median(contrib_samples, axis=(0, 1, 2))
+        contrib_da = self._fitted_model.compute_channel_contribution_original_scale()
+        # Returns an xarray DataArray with dims (chain, draw, [date,] channel).
+        # Reduce over everything except the channel dimension to get per-channel totals.
+        contrib_samples = np.asarray(contrib_da.values)
+        # The channel axis is the last dim in pymc-marketing's output, but be safe.
+        channel_dim = contrib_da.dims.index("channel") if "channel" in contrib_da.dims else (contrib_samples.ndim - 1)
+        # Move channel to last axis and flatten all other sample dims.
+        contrib_samples = np.moveaxis(np.asarray(contrib_samples), channel_dim, -1)
+        flat = contrib_samples.reshape(-1, contrib_samples.shape[-1])
+        contrib_median = np.median(flat, axis=0)
         total_spend = self._fit_data[self._channel_columns].sum(axis=0) if self._fit_data is not None else pd.Series(1.0, index=self._channel_columns)
         total_contrib = contrib_median.sum()
         results: list[ChannelContribution] = []
@@ -206,7 +218,7 @@ class MMMModel:
         logger.info("model saved to %s", path)
 
     @classmethod
-    def load(cls, path: Path | str, config: ModelConfig | None = None) -> "MMMModel":
+    def load(cls, path: Path | str, config: ModelConfig | None = None) -> MMMModel:
         path = Path(path)
         MMMClass = _lazy_pmc_mmm()
         loaded = MMMClass.load(str(path / "model.json"))

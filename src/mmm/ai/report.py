@@ -1,9 +1,11 @@
 """Generate structured reports from MMM results."""
 from __future__ import annotations
+
 import logging
-from mmm.ai.providers import LLMProvider, get_llm_provider
+
 from mmm.ai.prompts import REPORT_SYSTEM, REPORT_USER_TEMPLATE
-from mmm.models.schemas import ChannelContribution, AllocationResult
+from mmm.ai.providers import LLMProvider, get_llm_provider
+from mmm.models.schemas import AllocationResult, ChannelContribution
 
 logger = logging.getLogger(__name__)
 

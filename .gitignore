@@ -1,8 +1,12 @@
 .venv/
 __pycache__/
 *.pyc
+*.egg-info/
 model_artifacts/
 node_modules/
 .next/
 .env
-data/sample/
+data/
+*.tsbuildinfo
+*.db
+.DS_Store

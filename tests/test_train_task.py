@@ -7,7 +7,7 @@ Covers:
 """
 from __future__ import annotations
 
-from datetime import datetime
+import asyncio
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -16,12 +16,10 @@ import pytest
 from mmm.models.schemas import (
     ChannelContribution,
     FitResult,
-    MediaRecord,
+    MMMDataset,
     ModelConfig,
     ModelDiagnostics,
-    MMMDataset,
 )
-
 
 # ---------------------------------------------------------------------------
 # _build_run_inputs
@@ -38,7 +36,7 @@ class TestBuildRunInputs:
                 {"date": "2024-01-08", "channel": "google", "spend": 800},
             ],
         }
-        model_config, dataset = _build_run_inputs("job-1", config)
+        model_config, dataset = asyncio.run(_build_run_inputs("job-1", config))
         assert isinstance(model_config, ModelConfig)
         assert model_config.name == "test-job"
         assert model_config.draws == 500
@@ -55,7 +53,7 @@ class TestBuildRunInputs:
                 {"date": "2024-01-01", "channel": "meta", "spend": 500},
             ],
         }
-        model_config, dataset = _build_run_inputs("job-2", config)
+        model_config, dataset = asyncio.run(_build_run_inputs("job-2", config))
         # Should use defaults
         assert model_config.name == "job-job-2"  # f"job-{model_job_id}"
         assert model_config.draws == 1000
@@ -70,13 +68,14 @@ class TestBuildRunInputs:
         config = {"model": {"name": "empty"}, "records": []}
         # MMMDataset's pydantic validator rejects empty records list
         with pytest.raises(ValueError, match="at least one record"):
-            _build_run_inputs("job-3", config)
+            asyncio.run(_build_run_inputs("job-3", config))
 
-    def test_raises_not_implemented_when_config_is_none(self):
-        from mmm.tasks.train import _build_run_inputs
+    def test_config_none_requires_db(self):
+        # config=None now triggers a DB-backed load; without one it raises InfraError.
+        from mmm.tasks.train import InfraError, _build_run_inputs
 
-        with pytest.raises(NotImplementedError, match="DB persistence not wired"):
-            _build_run_inputs("job-4", None)
+        with pytest.raises(InfraError):
+            asyncio.run(_build_run_inputs("job-4", None))
 
     def test_includes_control_columns(self):
         from mmm.tasks.train import _build_run_inputs
@@ -87,7 +86,7 @@ class TestBuildRunInputs:
             ],
             "control_columns": ["clicks", "impressions"],
         }
-        _, dataset = _build_run_inputs("job-5", config)
+        _, dataset = asyncio.run(_build_run_inputs("job-5", config))
         assert dataset.control_columns == ["clicks", "impressions"]
 
 
@@ -159,7 +158,7 @@ class TestTrainModelJob:
         mock_save.return_value = Path("/tmp/artifacts/job-test")
 
         with patch("mmm.tasks.train.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(model_storage_path="/tmp/models")
+            mock_settings.return_value = MagicMock(database_url="", model_storage_path="/tmp/models")
 
             with patch("mmm.tasks.train.MMMModel") as MockMMM:
                 mock_model = MagicMock()
@@ -200,7 +199,7 @@ class TestTrainModelJob:
         from mmm.tasks.train import train_model_job
 
         with patch("mmm.tasks.train.get_settings") as mock_settings:
-            mock_settings.return_value = MagicMock(model_storage_path="/tmp/models")
+            mock_settings.return_value = MagicMock(database_url="", model_storage_path="/tmp/models")
 
             with patch("mmm.tasks.train.MMMModel") as MockMMM:
                 mock_model = MagicMock()

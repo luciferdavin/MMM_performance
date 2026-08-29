@@ -11,7 +11,6 @@ from mmm.connectors.csv_upload import CSVConnector
 from mmm.connectors.meta_ads import MetaAdsConnector
 from mmm.connectors.tiktok import TikTokConnector
 
-
 CANONICAL_COLUMNS = [
     "date",
     "channel",
@@ -43,7 +42,7 @@ class FakeClient:
         self.payload = payload
         self.requests: list[dict] = []
 
-    def __enter__(self) -> "FakeClient":
+    def __enter__(self) -> FakeClient:
         return self
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:

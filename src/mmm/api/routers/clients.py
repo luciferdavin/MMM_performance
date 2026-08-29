@@ -1,9 +1,12 @@
 """Client CRUD endpoints."""
 from __future__ import annotations
+
 import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from mmm.api.auth import OrganizationContext, UserContext, get_current_user, get_org_id
+
+from mmm.api.auth import OrganizationContext, get_org_id
 from mmm.db import repo
 
 router = APIRouter(prefix="/clients", tags=["clients"])

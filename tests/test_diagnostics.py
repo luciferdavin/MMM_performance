@@ -8,10 +8,11 @@ Covers:
 """
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock
 
 from mmm.core.diagnostics import compute_diagnostics
 from mmm.models.schemas import ModelDiagnostics

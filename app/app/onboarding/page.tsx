@@ -214,7 +214,7 @@ export default function OnboardingPage() {
     if (step === 3 && !fitResult) {
       setIsTraining(true);
       try {
-        const result = await modelsApi.train(
+        const result = await modelsApi.trainSync(
           {
             name: "onboarding-demo",
             draws: 100,
@@ -223,6 +223,7 @@ export default function OnboardingPage() {
             adstock_max_lag: 4,
           },
           sampleRecords(),
+          createdClient?.id,
         );
         setFitResult(result);
         if (result.status !== "ok") {

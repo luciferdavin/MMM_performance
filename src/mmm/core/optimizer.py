@@ -1,10 +1,15 @@
 """Budget allocation optimizer — scipy-based fallback + pymc wrapper."""
 from __future__ import annotations
+
 import logging
+
 import numpy as np
 from scipy.optimize import minimize
+
 from mmm.models.schemas import (
-    Allocation, AllocationResult, BudgetConstraints, ChannelContribution,
+    Allocation,
+    AllocationResult,
+    BudgetConstraints,
 )
 
 logger = logging.getLogger(__name__)

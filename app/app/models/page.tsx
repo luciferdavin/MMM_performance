@@ -10,8 +10,9 @@ import {
   clients as clientsApi,
   models as modelsApi,
   type Client,
-  type FitResult,
   type MediaRecord,
+  type ModelConfig,
+  type ModelJob,
   type ChannelContribution,
 } from "@/lib/api";
 
@@ -52,20 +53,37 @@ export default function ModelsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [training, setTraining] = useState(false);
-  const [lastResult, setLastResult] = useState<FitResult | null>(null);
+  const [lastResult, setLastResult] = useState<{ model_job_id: string; status: string } | null>(null);
   const [models, setModels] = useState<TrainedModel[]>([]);
   const [contributions, setContributions] = useState<Record<string, ChannelContribution[]>>({});
   const [loadingContributions, setLoadingContributions] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const refreshModels = useCallback(async () => {
+    try {
+      const data = await modelsApi.list();
+      setModels(
+        data.map((m) => ({
+          modelId: m.id,
+          modelName: m.name,
+          status: m.status,
+          r2: m.r2 ?? null,
+          mape: m.mape ?? null,
+          trainedAt: m.created_at ? new Date(m.created_at) : new Date(),
+        }))
+      );
+    } catch {
+      setModels([]);
+    }
+  }, []);
+
   useEffect(() => {
     clientsApi.list().then((data) => {
       setClients(data);
-      if (data.length > 0) {
-        setSelectedClientId(data[0].id);
-      }
+      if (data.length > 0) setSelectedClientId(data[0].id);
     }).catch(() => setClients([]));
-  }, []);
+    refreshModels();
+  }, [refreshModels]);
 
   const train = useCallback(async () => {
     setTraining(true);
@@ -74,33 +92,20 @@ export default function ModelsPage() {
     try {
       const fit = await modelsApi.train(
         { name: "mmm-model", draws: 100, tune: 100, chains: 1, adstock_max_lag: 4 },
-        sampleRecords()
+        sampleRecords(),
+        selectedClientId || undefined
       );
       setLastResult(fit);
-      if (fit.status === "ok" && fit.diagnostics) {
-        setModels((prev) => [
-          {
-            modelId: fit.model_id,
-            modelName: fit.model_name,
-            status: fit.status,
-            r2: fit.diagnostics?.r2 ?? null,
-            mape: fit.diagnostics?.mape ?? null,
-            trainedAt: new Date(),
-          },
-          ...prev,
-        ]);
-      }
+      await refreshModels();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Training failed");
     } finally {
       setTraining(false);
     }
-  }, []);
+  }, [selectedClientId, refreshModels]);
 
   const loadContributions = useCallback(async (modelId: string) => {
-    if (contributions[modelId]) {
-      return;
-    }
+    if (contributions[modelId]) return;
     setLoadingContributions(modelId);
     try {
       const data = await modelsApi.contributions(modelId);
@@ -165,42 +170,15 @@ export default function ModelsPage() {
             {lastResult && (
               <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-700">Training Result</span>
-                  <Badge variant={lastResult.status === "ok" ? "success" : "error"}>
+                  <span className="text-sm font-medium text-slate-700">Training Job</span>
+                  <Badge variant={lastResult.status === "queued" || lastResult.status === "running" ? "info" : lastResult.status === "succeeded" ? "success" : "error"}>
                     {lastResult.status}
                   </Badge>
                 </div>
                 <div className="text-xs text-slate-500 font-mono">
-                  Model ID: {lastResult.model_id}
+                  Job ID: {lastResult.model_job_id}
                 </div>
-                {lastResult.diagnostics && (
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-slate-500">R&sup2;:</span>{" "}
-                      <span className={lastResult.diagnostics.r2 >= 0.7 ? "text-green-600 font-medium" : "text-amber-600 font-medium"}>
-                        {lastResult.diagnostics.r2.toFixed(3)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">MAPE:</span>{" "}
-                      <span className={lastResult.diagnostics.mape < 20 ? "text-green-600 font-medium" : "text-amber-600 font-medium"}>
-                        {lastResult.diagnostics.mape.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Converged:</span>{" "}
-                      <span className={lastResult.diagnostics.converged ? "text-green-600" : "text-red-600"}>
-                        {lastResult.diagnostics.converged ? "Yes" : "No"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">R-hat max:</span>{" "}
-                      <span className={lastResult.diagnostics.rhat_max < 1.1 ? "text-green-600" : "text-amber-600"}>
-                        {lastResult.diagnostics.rhat_max.toFixed(3)}
-                      </span>
-                    </div>
-                  </div>
-                )}
+                <p className="text-xs text-slate-500">Training runs in the background. Refresh the list below or visit the model page to see results once complete.</p>
               </div>
             )}
           </CardContent>
@@ -208,9 +186,9 @@ export default function ModelsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Session models</CardTitle>
+            <CardTitle>Training history</CardTitle>
             <CardDescription>
-              Models trained in this session (in-memory, not persisted).
+              All models trained in your organization (persisted across restarts).
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -238,7 +216,7 @@ export default function ModelsPage() {
                           {m.modelId.slice(0, 8)}...
                         </TableCell>
                         <TableCell>
-                          <Badge variant={m.status === "ok" ? "success" : "error"}>
+                          <Badge variant={m.status === "succeeded" ? "success" : m.status === "failed" ? "error" : "info"}>
                             {m.status}
                           </Badge>
                         </TableCell>

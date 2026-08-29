@@ -1,6 +1,4 @@
 """Tests for preprocessor module."""
-import pandas as pd
-import pytest
 from mmm.core.preprocessor import aggregate_wide, records_to_dataframe
 from mmm.models.schemas import Granularity, MediaRecord
 

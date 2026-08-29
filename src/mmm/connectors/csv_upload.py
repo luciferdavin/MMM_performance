@@ -1,9 +1,13 @@
 """CSV upload connector - universal fallback."""
 from __future__ import annotations
-import pandas as pd
+
 from datetime import datetime
 from pathlib import Path
-from mmm.connectors.base import DataConnector, ConnectorConfig
+
+import pandas as pd
+
+from mmm.connectors.base import ConnectorConfig, DataConnector
+
 
 class CSVConnector(DataConnector):
     def __init__(self) -> None:

@@ -1,5 +1,6 @@
 """Model configuration helpers and presets."""
 from __future__ import annotations
+
 from mmm.models.schemas import Granularity, ModelConfig
 
 CHANNEL_PRIOR_HINTS: dict[str, list[float]] = {

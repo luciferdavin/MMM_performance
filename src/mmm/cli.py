@@ -1,15 +1,16 @@
 """CLI for training, optimizing, and reporting."""
 from __future__ import annotations
+
 import asyncio
 import json
+
 import click
 import pandas as pd
 from rich.console import Console
 from rich.table import Table
-from mmm.core.engine import MMMModel
+
 from mmm.core.config import build_model_config
-from mmm.core.optimizer import allocate_budget_scipy
-from mmm.connectors.csv_upload import CSVConnector
+from mmm.core.engine import MMMModel
 from mmm.models.schemas import BudgetConstraints, MediaRecord, MMMDataset
 
 console = Console()
@@ -121,14 +122,25 @@ def seed() -> None:
 
     # Persist to database
     async def _persist_seed():
+        from mmm.db.repo import (
+            add_channel_results,
+            create_client,
+            create_model_job,
+            create_organization,
+            get_organization,
+        )
         from mmm.db.session import init_db
-        from mmm.db.repo import create_client, create_model_job, add_channel_results
 
         await init_db()
 
+        org = await get_organization("dev-org")
+        if org is None:
+            org = await create_organization(name="Dev Org", slug="dev-org", organization_id="dev-org")
+        org_id = org.id
+
         client = await create_client(
             client_id="seed-client",
-            organization_id="dev-org",
+            organization_id=org_id,
             name="Seed Demo Client",
             slug="seed-demo",
         )
@@ -136,7 +148,7 @@ def seed() -> None:
 
         job = await create_model_job(
             job_id=result.model_id,
-            organization_id="dev-org",
+            organization_id=org_id,
             client_id=client.id,
             model_name=config.name,
             config_json=json.dumps(config.model_dump(), default=str),

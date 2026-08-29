@@ -1,9 +1,11 @@
 """Generate NL insights from trained MMM model via LLM."""
 from __future__ import annotations
-import json, logging
-from mmm.ai.providers import LLMProvider, get_llm_provider
+
+import logging
+
 from mmm.ai.prompts import INSIGHT_SYSTEM, INSIGHT_USER_TEMPLATE
-from mmm.models.schemas import ChannelContribution, AllocationResult, Insight
+from mmm.ai.providers import LLMProvider, get_llm_provider
+from mmm.models.schemas import AllocationResult, ChannelContribution, Insight
 
 logger = logging.getLogger(__name__)
 

@@ -309,7 +309,13 @@ The test suite covers:
 | `POST` | `/api/v1/clients` | Create a new client (`{name, slug?}`) |
 | `GET` | `/api/v1/clients/{id}` | Get a single client |
 | `DELETE` | `/api/v1/clients/{id}` | Delete a client |
-| `POST` | `/api/v1/models/train` | Train a model (`{config, records[]}`) -- returns `FitResult` with `model_id` |
+| `POST` | `/api/v1/auth/register` | Create org + user, return JWT |
+| `POST` | `/api/v1/auth/login` | Login, return JWT |
+| `GET` | `/api/v1/auth/me` | Current user + org |
+| `GET` | `/api/v1/models` | List model jobs for the current org |
+| `GET` | `/api/v1/models/{id}` | Get a model job |
+| `POST` | `/api/v1/models/train` | Enqueue a background training job (`{config, records[], client_id?}`) -- returns `{model_job_id, status, channels}` (202) |
+| `POST` | `/api/v1/models/train-sync` | Fit a model synchronously, persist + return `FitResult` (no Redis needed) |
 | `POST` | `/api/v1/models/{id}/allocate` | Allocate budget (`{total_budget, channel_bounds?}`) -- returns `AllocationResult` |
 | `GET` | `/api/v1/models/{id}/contributions` | Get channel contributions for a trained model |
 | `POST` | `/api/v1/models/{id}/insights` | Generate AI-powered insights for a model (`{client_name?}`) |
@@ -319,10 +325,11 @@ The test suite covers:
 
 ## Roadmap / Known Limits
 
-- **Real connector credentials** -- all API connectors (Meta, Google, TikTok, Shopify, LinkedIn) are implemented but require valid OAuth credentials to pull live data. CSV upload works without any keys.
-- **DB layer is in-memory** -- client, model, and report stores are in-memory dicts for dev. Supabase wiring is in progress; the migration file and auth module are ready.
-- **Browser E2E tests pending** -- the Next.js dashboard has not yet been covered by end-to-end browser tests.
-- **Celery workers** -- async training jobs are defined in `src/mmm/tasks/train.py` but require a running Redis + Celery worker to execute in the background.
+- **Real connector credentials** — all API connectors (Meta, Google, TikTok, Shopify, LinkedIn) are implemented but require valid OAuth credentials to pull live data. CSV upload works without any keys, and `GET /marketing-data` is the canonical ingest path.
+- **Background training** — `POST /api/v1/models/train` enqueues a Celery job (queue `training`); `POST /api/v1/models/train-sync` returns a `FitResult` immediately for the onboarding/optimize flows. Both persist results to the database; fitted artifacts live on disk under `model_storage_path`.
+- **Celery workers** — async training jobs require a running Redis + Celery worker (`celery -A mmm.worker.celery_app worker -Q training`). The sync path works without Redis.
+- **Supabase** — the platform runs self-contained (SQLite default, JWT auth built in). To use Supabase Postgres, set `DATABASE_URL` (or a `postgresql://` URL) and optionally `SUPABASE_JWT_SECRET`; tokens issued by Supabase Auth are accepted alongside built-in auth.
+- **Browser E2E tests** — the Next.js dashboard is covered by build-time type checks; end-to-end browser tests are not yet automated.
 
 ## License
 

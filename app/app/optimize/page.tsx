@@ -43,7 +43,7 @@ export default function OptimizePage() {
     setError(null);
     setResult(null);
     try {
-      const fit = await modelsApi.train(
+      const fit = await modelsApi.trainSync(
         { name: "optimizer-demo", draws: 100, tune: 100, chains: 1, adstock_max_lag: 4 },
         sampleRecords(),
       );

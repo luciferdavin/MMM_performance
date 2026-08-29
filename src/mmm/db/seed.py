@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -18,7 +17,6 @@ async def seed_demo_data(organization_id: str = "dev-org") -> dict[str, Any]:
     - Saves the ModelJob and ChannelResult rows to the database.
     - Returns a summary dict of what was created.
     """
-    from mmm.config import get_settings
     from mmm.core.config import build_model_config
     from mmm.core.engine import MMMModel
     from mmm.db.repo import add_channel_results, create_client, create_model_job

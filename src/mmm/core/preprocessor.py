@@ -1,7 +1,10 @@
 """Data validation, aggregation, and pivoting into training format."""
 from __future__ import annotations
+
 import pandas as pd
+
 from mmm.models.schemas import Granularity, MediaRecord, MMMDataset
+
 
 def records_to_dataframe(records: list[MediaRecord]) -> pd.DataFrame:
     df = pd.DataFrame([r.model_dump() for r in records])

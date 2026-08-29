@@ -8,22 +8,21 @@ Covers:
 """
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock, patch
 
+from mmm.core.engine import MMMModel
 from mmm.models.schemas import (
-    BudgetConstraints,
     ChannelContribution,
     FitResult,
+    MediaRecord,
+    MMMDataset,
     ModelConfig,
     ModelDiagnostics,
-    MMMDataset,
-    MediaRecord,
 )
-from mmm.core.engine import MMMModel
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -241,11 +240,14 @@ class TestGetChannelContributions:
         model = MMMModel(default_config)
         model.fit(sample_dataset)
 
-        # Mock the channel contribution computation
+        # Mock the channel contribution computation (pymc-marketing 0.19.2 API:
+        # compute_channel_contribution_original_scale() returns an xarray
+        # DataArray with .values and .dims).
         # Shape: (chain=1, draw=200, date=8, channel=2)
         contrib_data = np.random.default_rng(42).random((1, 200, 8, 2))
         mock_contrib_result = MagicMock()
-        mock_contrib_result.channel_contribution_original_scale_samples = contrib_data
+        mock_contrib_result.values = contrib_data
+        mock_contrib_result.dims = ("chain", "draw", "date", "channel")
         model._fitted_model.compute_channel_contribution_original_scale.return_value = mock_contrib_result
 
         results = model.get_channel_contributions()
@@ -280,7 +282,8 @@ class TestGetChannelContributions:
         contrib_data[:, :, :, 0] = 100  # meta lower
         contrib_data[:, :, :, 1] = 200  # google higher
         mock_contrib_result = MagicMock()
-        mock_contrib_result.channel_contribution_original_scale_samples = contrib_data
+        mock_contrib_result.values = contrib_data
+        mock_contrib_result.dims = ("chain", "draw", "date", "channel")
         model._fitted_model.compute_channel_contribution_original_scale.return_value = mock_contrib_result
 
         results = model.get_channel_contributions()
@@ -390,7 +393,6 @@ class TestPredict:
         n_rows = len(model._fit_data)
         model._fitted_model.predict.return_value = np.ones(n_rows) * 5000
 
-        from mmm.models.schemas import ForecastPoint
         forecasts = model.predict()
         assert len(forecasts) == n_rows
         for fp in forecasts:

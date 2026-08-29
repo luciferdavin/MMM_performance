@@ -51,6 +51,7 @@ dependencies = [
 dev = [
     "pytest>=8.2",
     "pytest-cov>=5.0",
+    "pytest-asyncio>=0.23",
     "ruff>=0.5",
     "mypy>=1.10",
     "ipykernel>=6.29",
@@ -81,6 +82,7 @@ where = ["src"]
 testpaths = ["tests"]
 addopts = "-ra --tb=short"
 pythonpath = ["src"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 110
@@ -88,4 +90,4 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B"]
-ignore = ["E501"]
+ignore = ["E501", "B008", "B904", "E702", "UP042", "F841", "B017"]

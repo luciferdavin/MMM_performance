@@ -1,9 +1,8 @@
 """Tests for budget optimizer."""
-import pytest
 import pandas as pd
-import numpy as np
-from mmm.models.schemas import BudgetConstraints, ChannelContribution
+
 from mmm.core.optimizer import allocate_budget_scipy
+from mmm.models.schemas import ChannelContribution
 
 
 class FakeModel:

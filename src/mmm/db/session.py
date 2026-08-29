@@ -13,22 +13,25 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from mmm.config import get_settings
 from mmm.db.models import Base
 
-
 # Module-level engine and session factory (set by init_db)
 _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
-def get_database_url() -> str:
+def get_database_url(override: str | None = None) -> str:
     """Determine the database URL based on settings.
 
-    - If settings.database_url is set (Supabase Postgres), use it.
+    - If ``override`` is provided, use it (used by tests / explicit config).
+    - Else if settings.database_url is set (Supabase Postgres), use it.
     - Otherwise, use SQLite at ./data/mmm.db (creating the directory if needed).
     """
-    settings = get_settings()
-    if settings.database_url:
-        # Convert postgresql:// to postgresql+asyncpg:// for async driver
+    if override:
+        url = override
+    else:
+        settings = get_settings()
         url = settings.database_url
+    if url:
+        # Convert postgresql:// to postgresql+asyncpg:// for async driver
         if url.startswith("postgresql://"):
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         elif url.startswith("postgres://"):
@@ -73,14 +76,15 @@ async def get_session() -> AsyncSession:
             raise
 
 
-async def init_db(echo: bool = False) -> None:
+async def init_db(echo: bool = False, database_url: str | None = None) -> None:
     """Initialize the async engine and create all tables.
 
-    Call this once at application startup.
+    Call this once at application startup. ``database_url`` overrides the
+    configured URL (useful for tests / multi-DB deployments).
     """
     global _engine, _session_factory
 
-    url = get_database_url()
+    url = get_database_url(override=database_url)
     _engine = create_async_engine(url, echo=echo, pool_pre_ping=True)
 
     _session_factory = async_sessionmaker(

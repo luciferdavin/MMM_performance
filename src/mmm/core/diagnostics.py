@@ -1,13 +1,18 @@
-"""Model diagnostics — convergence, R², MAPE."""
+"""Model diagnostics: convergence, R-squared, MAPE."""
+
 from __future__ import annotations
-import numpy as np
+
 import logging
+
+import numpy as np
+import pandas as pd
+
+from mmm.models.schemas import ModelDiagnostics
 
 logger = logging.getLogger(__name__)
 
 
-def compute_diagnostics(model, y: "pd.Series", X: "pd.DataFrame", name: str, warnings: list[str] | None = None) -> "ModelDiagnostics":
-    from mmm.models.schemas import ModelDiagnostics
+def compute_diagnostics(model, y: pd.Series, X: pd.DataFrame, name: str, warnings: list[str] | None = None) -> ModelDiagnostics:
     if warnings is None:
         warnings = []
     rhat_max = 1.1
@@ -15,6 +20,7 @@ def compute_diagnostics(model, y: "pd.Series", X: "pd.DataFrame", name: str, war
     try:
         if hasattr(model, "posterior") and model.posterior is not None:
             import arviz as az
+
             summary = az.summary(model.posterior, var_names=["beta_channel"])
             if summary is not None and hasattr(summary, "r_hat"):
                 rhat_max = float(summary["r_hat"].max())
@@ -22,7 +28,7 @@ def compute_diagnostics(model, y: "pd.Series", X: "pd.DataFrame", name: str, war
     except Exception:
         logger.warning("rhat computation failed; defaulting to 1.1")
 
-    # R²
+    # R-squared
     r2 = 0.0
     mape = 0.0
     try:
@@ -34,9 +40,9 @@ def compute_diagnostics(model, y: "pd.Series", X: "pd.DataFrame", name: str, war
         r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
         mape = float(np.mean(np.abs((y_np - pred_np) / np.where(y_np == 0, 1, y_np)))) * 100
     except Exception:
-        logger.warning("R²/MAPE computation failed")
+        logger.warning("R2/MAPE computation failed")
     if not converged:
         warnings.append(f"R-hat max={rhat_max:.3f} >= 1.1; model did not converge")
     if r2 < 0.3:
-        warnings.append(f"low R² ({r2:.3f}); check data quality and channel coverage")
+        warnings.append(f"low R2 ({r2:.3f}); check data quality and channel coverage")
     return ModelDiagnostics(model_name=name, converged=converged, rhat_max=rhat_max, r2=r2, mape=mape, warnings=warnings)

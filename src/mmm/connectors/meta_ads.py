@@ -1,9 +1,14 @@
 """Meta Marketing API connector."""
 from __future__ import annotations
-import httpx, pandas as pd
+
 from datetime import datetime
-from mmm.connectors.base import DataConnector, ConnectorConfig
+
+import httpx
+import pandas as pd
+
 from mmm.config import get_settings
+from mmm.connectors.base import ConnectorConfig, DataConnector
+
 
 class MetaAdsConnector(DataConnector):
     def __init__(self) -> None:

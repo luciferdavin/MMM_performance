@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { reports as reportsApi, type MediaRecord, type Report } from "@/lib/api";
+import { reports as reportsApi, type MediaRecord } from "@/lib/api";
 
 function sampleRecords(): MediaRecord[] {
   const channels = ["meta", "google_ads", "tiktok", "tv", "radio"] as const;
@@ -22,12 +22,34 @@ function sampleRecords(): MediaRecord[] {
   return out;
 }
 
+interface GeneratedReport {
+  report_id: string;
+  client_name?: string;
+  markdown: string;
+}
+
 export default function ReportsPage() {
-  const [reports, setReports] = useState<Report[]>([]);
+  const [reports, setReports] = useState<GeneratedReport[]>([]);
   const [generating, setGenerating] = useState(false);
   const [clientName, setClientName] = useState("Client");
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Report | null>(null);
+  const [selected, setSelected] = useState<GeneratedReport | null>(null);
+
+  const refresh = async () => {
+    try {
+      const list = await reportsApi.list();
+      setReports((prev) => [
+        ...prev,
+        ...list.map((r) => ({ report_id: r.report_id, client_name: r.client_name, markdown: "" })),
+      ]);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
 
   const generate = async () => {
     setGenerating(true);
@@ -90,7 +112,23 @@ export default function ReportsPage() {
               <ul className="divide-y divide-slate-100">
                 {reports.map((r) => (
                   <li key={r.report_id} className="flex items-center justify-between px-4 py-3">
-                    <button className="text-sm font-medium text-slate-900 hover:text-indigo-600" onClick={() => setSelected(r)}>
+                    <button
+                      className="text-sm font-medium text-slate-900 hover:text-indigo-600"
+                      onClick={async () => {
+                        if (r.markdown) {
+                          setSelected(r);
+                          return;
+                        }
+                        try {
+                          const full = await reportsApi.get(r.report_id);
+                          const updated = { ...r, markdown: full.markdown };
+                          setReports((prev) => prev.map((x) => (x.report_id === r.report_id ? updated : x)));
+                          setSelected(updated);
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : "Failed to load report");
+                        }
+                      }}
+                    >
                       {r.client_name} — report
                     </button>
                     <a href={reportsApi.pdfUrl(r.report_id)} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 hover:underline">

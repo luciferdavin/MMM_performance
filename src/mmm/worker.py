@@ -24,39 +24,20 @@ logger = logging.getLogger(__name__)
 # Queue constants
 # ---------------------------------------------------------------------------
 QUEUE_TRAINING = "training"
-QUEUE_DATA_SYNC = "data_sync"
-QUEUE_REPORTS = "reports"
 
 # ---------------------------------------------------------------------------
 # Per-queue routing table
 #
 # Celery message priority (Redis broker): 0 = highest, 9 = lowest.
-# docs/02-trd.md §11.2: training=high, data_sync=normal, reports=low.
+# Training is high priority with a generous timeout for PyMC sampling.
 # ---------------------------------------------------------------------------
 _ROUTES: dict[str, dict[str, Any]] = {
-    # Training — high priority, generous timeout for PyMC sampling
     "mmm.tasks.train.train_model_job": {
         "queue": QUEUE_TRAINING,
         "routing_key": "train.model_job",
         "priority": 0,
-        "time_limit": 1200,          # 20 min hard (§11.3)
+        "time_limit": 1200,          # 20 min hard
         "soft_time_limit": 1080,     # 18 min soft → raises SoftTimeLimitExceeded
-    },
-    # Data sync — normal priority, 600 s timeout
-    "mmm.tasks.data_sync.sync_data_source": {
-        "queue": QUEUE_DATA_SYNC,
-        "routing_key": "sync.data_source",
-        "priority": 5,
-        "time_limit": 600,
-        "soft_time_limit": 540,
-    },
-    # Reports — low priority, 600 s timeout
-    "mmm.tasks.reports.render_report": {
-        "queue": QUEUE_REPORTS,
-        "routing_key": "reports.render",
-        "priority": 8,
-        "time_limit": 600,
-        "soft_time_limit": 540,
     },
 }
 
@@ -143,17 +124,7 @@ def enqueue_train_job(
     model_job_id: str,
     config: dict[str, Any] | None = None,
 ) -> Any:
-    """Schedule a model training job on the ``training`` queue.
-
-    Parameters
-    ----------
-    model_job_id:
-        UUID of the ``model_jobs`` row (or any unique identifier for dev mode).
-    config:
-        Optional JSON-serialisable config dict.  When the DB persistence layer
-        is wired the task will load config from ``model_jobs.config``; passing
-        it explicitly is a convenience for testing / development.
-    """
+    """Schedule a model training job on the ``training`` queue."""
     return celery_app.send_task(
         "mmm.tasks.train.train_model_job",
         kwargs={"model_job_id": model_job_id, "config": config},
@@ -161,22 +132,3 @@ def enqueue_train_job(
         priority=0,
     )
 
-
-def enqueue_data_sync(data_source_id: str) -> Any:
-    """Schedule a connector data-sync job on the ``data_sync`` queue."""
-    return celery_app.send_task(
-        "mmm.tasks.data_sync.sync_data_source",
-        kwargs={"data_source_id": data_source_id},
-        queue=QUEUE_DATA_SYNC,
-        priority=5,
-    )
-
-
-def enqueue_report(report_id: str) -> Any:
-    """Schedule a PDF report render on the ``reports`` queue."""
-    return celery_app.send_task(
-        "mmm.tasks.reports.render_report",
-        kwargs={"report_id": report_id},
-        queue=QUEUE_REPORTS,
-        priority=8,
-    )

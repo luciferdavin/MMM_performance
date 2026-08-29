@@ -1,8 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CLIENTS } from '@/lib/mock-data';
+import { clients } from '@/lib/api';
 import { cn } from '@/lib/cn';
+
+interface SwitcherClient {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 function initials(name: string): string {
   return name
@@ -13,15 +19,14 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
-const STATUS_DOT: Record<string, string> = {
-  healthy: 'bg-green-500',
-  'needs-data': 'bg-slate-400',
-  'retrain-due': 'bg-amber-500',
-};
-
 export function ClientSwitcher() {
   const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<SwitcherClient[]>([]);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    clients.list().then(setItems).catch(() => setItems([]));
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -39,6 +44,8 @@ export function ClientSwitcher() {
     };
   }, [open]);
 
+  const current = items[0];
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -49,9 +56,9 @@ export function ClientSwitcher() {
         className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
       >
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-700">
-          {initials(CLIENTS[0]?.name ?? 'A')}
+          {initials(current?.name ?? 'A')}
         </span>
-        <span className="hidden sm:inline">{CLIENTS[0]?.name ?? 'Select client'}</span>
+        <span className="hidden sm:inline">{current?.name ?? 'Select client'}</span>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           className={cn('h-4 w-4 text-slate-400 transition-transform', open && 'rotate-180')}
@@ -68,7 +75,7 @@ export function ClientSwitcher() {
           <li className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 select-none">
             Clients
           </li>
-          {CLIENTS.map((c) => (
+          {items.map((c: SwitcherClient) => (
             <li key={c.id}>
               <a
                 href={`/clients/${c.id}`}
@@ -80,9 +87,7 @@ export function ClientSwitcher() {
                 </span>
                 <span className="flex-1 min-w-0">
                   <span className="block truncate font-medium text-slate-900">{c.name}</span>
-                  <span className="block truncate text-xs text-slate-500">{c.industry}</span>
                 </span>
-                <span className={cn('h-2 w-2 shrink-0 rounded-full', STATUS_DOT[c.status])} />
               </a>
             </li>
           ))}
